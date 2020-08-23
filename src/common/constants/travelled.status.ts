@@ -1,0 +1,15 @@
+export const ON_TIME = "Reaching On Time";
+export const STOPPED = "Stopped";
+export const BREAKDOWN = "Breakdown";
+export const DIVERTED = "Diverted";
+export const IDEL = "Idle";
+export const DELAYED = "Delayed";
+export const LATE = "Running Late";
+export const ARRVING_AT_PICKUP = "Arriving at pickup";
+export const ARRVING_AT_DESTINATION = "Arriving at destination";
+export const ARRIVED_AT_PICKUP = "Arrived at pickup";
+export const AT_DESTINATION = "At Destination";
+export const TO_PICKUP = "toPickup";
+export const TO_DELIVERY = "toDelivery";
+export const AT_DESTINATION_STATUS = "atDestination";
+export const TRANSPORTING = "Transporting";

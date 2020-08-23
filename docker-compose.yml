@@ -1,0 +1,30 @@
+version: '2'
+services:
+  corelocation:
+    image: ${SERVICE_IMAGE}
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - KAFKA_BROKERS=${KAFKA_BROKERS}
+      - KAFKA_KEY=${KAFKA_KEY}
+      - KAFKA_SECRET=${KAFKA_SECRET}
+      - CLOUDMQTT_URL=${CLOUDMQTT_URL}
+      - CLOUDMQTT_PORT=${CLOUDMQTT_PORT}
+      - CLOUDMQTT_USER=${CLOUDMQTT_USER}
+      - CLOUDMQTT_PASS=${CLOUDMQTT_PASS}
+      - NPM_TOKEN=${NPM_TOKEN}
+      - API_TOKEN=${API_TOKEN}
+      - PORT=80
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_PASS=${DB_PASS}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - AUTH_URL=${AUTH_URL}
+      - GEO_URL=${GEO_URL}
+      - RMQ_HOST=${RMQ_HOST}
+      - RMQ_USER=${RMQ_USER}
+      - RMQ_PASS=${RMQ_PASS}
+      - RMQ_PORT=${RMQ_PORT}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_HOST=${REDIS_HOST}
+    restart: on-failure

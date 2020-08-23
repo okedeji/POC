@@ -1,0 +1,3 @@
+ls /microservice
+
+npm start

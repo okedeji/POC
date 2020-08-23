@@ -1,0 +1,118 @@
+image:
+  name: 746007504574.dkr.ecr.eu-west-1.amazonaws.com/corelocation
+  aws:
+    access-key: $AWS_ACCESS_KEY_ID
+    secret-key: $AWS_SECRET_ACCESS_KEY
+
+# Bitbucket pipeline config
+options:
+  docker: true
+definitions:
+  scripts:
+    - script: &variable-export |-
+        eval export SERVICE_API_KEY=$`echo -ne "$DEPLOYMENT_ENV"_SERVICE_API_KEY` &&
+        eval export SERVICE_API_SECRET=$`echo -ne "$DEPLOYMENT_ENV"_SERVICE_API_SECRET` &&
+        eval export AWS_ACCESS_KEY=$AWS_ACCESS_KEY_ID &&
+        eval export AWS_SECRET_KEY=$AWS_SECRET_ACCESS_KEY &&
+        eval export KAFKA_BROKERS=$`echo -ne "$DEPLOYMENT_ENV"_KAFKA_BROKERS` &&
+        eval export KAFKA_KEY=$`echo -ne "$DEPLOYMENT_ENV"_KAFKA_KEY` &&
+        eval export KAFKA_SECRET=$`echo -ne "$DEPLOYMENT_ENV"_KAFKA_SECRET` &&
+        eval export CLOUDMQTT_URL=$`echo -ne "$DEPLOYMENT_ENV"_CLOUDMQTT_URL` &&
+        eval export CLOUDMQTT_PORT=$`echo -ne "$DEPLOYMENT_ENV"_CLOUDMQTT_PORT` &&
+        eval export CLOUDMQTT_USER=$`echo -ne "$DEPLOYMENT_ENV"_CLOUDMQTT_USER` &&
+        eval export CLOUDMQTT_PASS=$`echo -ne "$DEPLOYMENT_ENV"_CLOUDMQTT_PASS` &&
+        eval export NODE_ENV=$`echo -ne "$DEPLOYMENT_ENV"_NODE_ENV` &&
+        eval export DB_HOST=$`echo -ne "$DEPLOYMENT_ENV"_DB_HOST` &&
+        eval export DB_NAME=$`echo -ne "$DEPLOYMENT_ENV"_DB_NAME` &&
+        eval export DB_PORT=$`echo -ne "$DEPLOYMENT_ENV"_DB_PORT` &&
+        eval export DB_PASS=$`echo -ne "$DEPLOYMENT_ENV"_DB_PASS` &&
+        eval export DB_USER=$`echo -ne "$DEPLOYMENT_ENV"_DB_USER` &&
+        eval export API_TOKEN=$`echo -ne "$DEPLOYMENT_ENV"_API_TOKEN` &&
+        eval export AUTH_URL=$`echo -ne "$DEPLOYMENT_ENV"_AUTH_URL` &&
+        eval export GEO_URL=$`echo -ne "$DEPLOYMENT_ENV"_GEO_URL` &&
+        eval export RMQ_HOST=$`echo -ne "$DEPLOYMENT_ENV"_RMQ_HOST` &&
+        eval export RMQ_USER=$`echo -ne "$DEPLOYMENT_ENV"_RMQ_USER` &&
+        eval export RMQ_PASS=$`echo -ne "$DEPLOYMENT_ENV"_RMQ_PASS` &&
+        eval export RMQ_PORT=$`echo -ne "$DEPLOYMENT_ENV"_RMQ_PORT` &&
+        eval export REDIS_PORT=$`echo -ne "$DEPLOYMENT_ENV"_REDIS_PORT` &&
+        eval export REDIS_HOST=$`echo -ne "$DEPLOYMENT_ENV"_REDIS_HOST` &&
+        eval export SERVICE_IMAGE=$AWS_REGISTRY_URL:$VERSION_NUMBER-$BITBUCKET_BUILD_NUMBER &&
+        eval export RANCHER_ACCESS_KEY=$`echo -ne "$DEPLOYMENT_ENV"_RANCHER_ACCESS_KEY` &&
+        eval export RANCHER_SECRET_KEY=$`echo -ne "$DEPLOYMENT_ENV"_RANCHER_SECRET_KEY` &&
+        eval export RANCHER_STACK=$`echo -ne "$DEPLOYMENT_ENV"_RANCHER_STACK` &&
+        eval export RANCHER_ENVIRONMENT=$`echo -ne "$DEPLOYMENT_ENV"_RANCHER_ENVIRONMENT` &&
+        eval export RANCHER_URL=$`echo -ne "$DEPLOYMENT_ENV"_RANCHER_URL`
+    - script: &Deploy-Script |-
+        export IMAGE=$AWS_REGISTRY_URL:$VERSION_NUMBER-$BITBUCKET_BUILD_NUMBER &&
+        export RANCHER_CLI_DIR=/opt/rancher_cli &&
+        mkdir -p $RANCHER_CLI_DIR &&
+        wget https://releases.rancher.com/cli/v0.6.13/rancher-linux-amd64-v0.6.13.tar.gz &&
+        tar zxvf rancher-linux-amd64-v0.6.13.tar.gz -C $RANCHER_CLI_DIR --strip-components=2 &&
+        $RANCHER_CLI_DIR/rancher --environment $RANCHER_ENVIRONMENT --url=$RANCHER_URL --access-key=$RANCHER_ACCESS_KEY --secret-key=$RANCHER_SECRET_KEY --wait --wait-state active up --upgrade --confirm-upgrade --stack $RANCHER_STACK -d --force-upgrade
+  steps:
+    - step: &Scan-Dependencies
+        name: SCAN Dependencies
+        image: node:10.15.0
+        script:
+          - npm audit --audit-level=moderate
+    - step: &Test-Step
+        name: RUN Tests
+        image: node:10.15.0
+        script:
+          - npm install
+          - *variable-export
+          # - npm run test
+          # - npm run test:cov
+    - step: &Build-And-Upload-Artefact
+        name: Package & Upload to ECR
+        image: atlassian/pipelines-awscli:latest
+        script:
+          # aws login aws ecr get-login --no-include-email --region eu-west-1
+          - eval $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
+          - aws configure list
+          # docker
+          - export BUILD_ID=$BITBUCKET_BRANCH_$BITBUCKET_COMMIT_$BITBUCKET_BUILD_NUMBER
+          - echo $BUILD_ID
+          - docker build -t $AWS_REGISTRY_NAME:$BUILD_ID --build-arg NPM_TOKEN="$NPM_TOKEN" .
+          - docker tag $AWS_REGISTRY_NAME:$BUILD_ID $AWS_REGISTRY_URL:$VERSION_NUMBER-$BITBUCKET_BUILD_NUMBER
+          - docker push $AWS_REGISTRY_URL:$VERSION_NUMBER-$BITBUCKET_BUILD_NUMBER
+pipelines:
+  pull-requests:
+    '**': #this runs as default for any pull request not elsewhere defined
+      - step: *Scan-Dependencies
+      - step: *Test-Step
+  branches:
+    master: &master-branch
+      - step: *Scan-Dependencies
+      - step: *Test-Step
+      - step: *Build-And-Upload-Artefact
+      - step:
+          name: Deploy to Staging
+          image: atlassian/pipelines-awscli:latest
+          deployment: staging
+          trigger: manual
+          script:
+            - export DEPLOYMENT_ENV=STAGING
+            - *variable-export
+            - *Deploy-Script
+      - step:
+          name: Deploy to Production
+          deployment: production
+          image: atlassian/pipelines-awscli:latest
+          trigger: manual
+          script:
+            - export DEPLOYMENT_ENV=LIVE
+            - *variable-export
+            - *Deploy-Script
+    development:
+      - step: *Scan-Dependencies
+      - step: *Test-Step
+      - step: *Build-And-Upload-Artefact
+      - step:
+          name: Deploy to Dev
+          image: atlassian/pipelines-awscli:latest
+          deployment: test
+          script:
+            - export DEPLOYMENT_ENV=DEV
+            - *variable-export
+            - *Deploy-Script
